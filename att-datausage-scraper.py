@@ -9,19 +9,19 @@ import re
 import string
 import sys
 import getopt
+import keyring
 
 atturl = 'http://www.att.com'
 
 this = sys.argv[0]
 
 userid = ''
-password = ''
 debug = ''
 
 def printhelp():
     print '{} -h'.format(this)
-    print '{} [-d] -u <userid> -p <password>'.format(this)
-    print '{} [-d] --userid=<userid> --password=<password>'.format(this)
+    print '{} [-d] -u <userid>'.format(this)
+    print '{} [-d] --userid=<userid>'.format(this)
 
 def printRes(req):
     if debug == 'Y':
@@ -34,7 +34,7 @@ def dprint(message):
         print message
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "dhu:p:", ["userid=", "password="])
+    opts, args = getopt.getopt(sys.argv[1:], "dhu:", ["userid="])
 except getopt.GetoptError:
     printhelp()
     sys.exit(2)
@@ -46,16 +46,12 @@ for opt, arg in opts:
         debug = 'Y'
     elif opt in ("-u", "--userid"):
         userid = arg
-    elif opt in ("-p", "--password"):
-        password = arg
 
 if userid == '':
     printhelp()
     sys.exit(3)
-elif password == '':
-    printhelp()
-    sys.exit(3)
 
+password = keyring.get_password("att",userid)
 dprint('Connecting to {}'.format(atturl))
 r = requests.get(atturl)
 printRes(r)
