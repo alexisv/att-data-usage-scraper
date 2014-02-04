@@ -26,11 +26,13 @@ If you would use this, you need to have your keyring set up like the following f
     >>> keyring.set_password("att", "att_username", "att_password")
 
 Run it like:
+
     ./att_datausage.py -h
     ./att_datausage.py [-d] -u <userid>
     ./att_datausage.py [-d] --userid=<userid>
 
 Output is like:
+
     Billing Period: Jan 06, 2014 - Present; 4 days left
     
     Detailed Data Usage Status: 409 / 1024.0 MB used
