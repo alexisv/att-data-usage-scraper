@@ -24,6 +24,130 @@ class MLStripper(HTMLParser.HTMLParser):
         return ' '.join(self.fed)
 
 
+class getforms(HTMLParser.HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.inForm = False
+        self.lasttag = None
+        self.lastformname = None
+        self.forms_data = {}
+        self.forms_input_data = {}
+    def handle_starttag(self, tag, attrs):
+        if tag == 'form':
+            self.inForm = False
+            for name, value in attrs:
+#                print name, value
+                if name == 'id':
+                    self.lastformname = value
+            #self.forms_data[self.lastformname] = attrs
+            self.forms_data[self.lastformname] = {}
+            self.forms_input_data[self.lastformname] = {}
+            self.inForm = True
+            self.lasttag = tag
+            fname = ''
+            fvalue = ''
+            for name, value in attrs:
+                #print name, value
+                if len(self.forms_data[self.lastformname]) > 0:
+                    self.forms_data[self.lastformname].update({name: value})
+                else:
+                    self.forms_data[self.lastformname] = {name: value}
+        if tag == 'input' and self.inForm == True:
+            inputname = ''
+            inputvalue = ''
+            for name, value in attrs:
+                #print name, value
+                if name == 'name':
+                    inputname = value
+                    #print inputname
+                    if len(self.forms_input_data[self.lastformname]) > 0:
+                        self.forms_input_data[self.lastformname].update({inputname: inputvalue})
+                    else:
+                        self.forms_input_data[self.lastformname] = {inputname: inputvalue}
+            for name, value in attrs:
+                if name == 'value' and inputname is not None and inputname != '':
+                    #print inputname, value
+                    if len(self.forms_input_data[self.lastformname]) > 0:
+                        self.forms_input_data[self.lastformname].update({inputname: value})
+                    else:
+                        self.forms_input_data[self.lastformname] = {inputname: value}
+            self.lasttag = tag
+    def handle_endtag(self, tag):
+        if tag == 'form':
+            self.inForm = False
+    def get_forms_data(self):
+        return self.forms_data, self.forms_input_data
+
+
+class gethrefbaseondata(HTMLParser.HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.inLink = False
+        self.lasttag = None
+        self.href = ''
+        self.curhref = ''
+    def handle_starttag(self, tag, attrs):
+        self.inLink = False
+        if tag == 'a':
+            self.inLink = True
+            for name, value in attrs:
+                if name == 'href':
+                    self.curhref = value
+        self.lasttag = tag
+    def handle_endtag(self, tag):
+        if tag == 'a':
+            self.inLink = False
+    def handle_data(self, data):
+        if data == 'View all usage' and self.lasttag == 'a' and self.inLink == True:
+            self.href = self.curhref
+    def get_href(self):
+        return self.href
+
+
+class getdatabaseondivid(HTMLParser.HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.inDiv = False
+        self.lasttag = None
+        self.udata = ''
+        self.curid = ''
+    def handle_starttag(self, tag, attrs):
+        self.inDiv = False
+        if tag == 'div':
+            self.inDiv = True
+            for name, value in attrs:
+                if name == 'id':
+                    self.curid = value
+        self.lasttag = tag
+    def handle_endtag(self, tag):
+        if tag == 'div':
+            self.inDiv = False
+    def handle_data(self, data):
+        if self.lasttag == 'div' and self.inDiv == True and self.curid in ('UsageUrl','timeRange'):
+            self.udata = data
+    def get_udata(self):
+        return self.udata
+
+
+class getparagraphdata(HTMLParser.HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.inPar = False
+        self.lasttag = None
+        self.lastdata = None
+        self.udata = ''
+    def handle_starttag(self, tag, attrs):
+        self.inPar = False
+        self.lasttag = tag
+    def handle_endtag(self, tag):
+        pass
+    def handle_data(self, data):
+        if self.lastdata == 'Billing Period:':
+            self.udata = data
+        self.lastdata = data
+    def get_udata(self):
+        return self.udata
+
 def strip_tags(html):
     s = MLStripper()
     s.feed(html)
@@ -89,35 +213,20 @@ def getdatausage(userid, debug):
     r = requests.get(ATTURL)
     printres(r, debug)
     dprint('Looking for form with id ssoLoginForm', debug)
-    fmatch = re.search('<form id="ssoLoginForm".+?</form>', r.text, re.DOTALL)
-    if fmatch:
-        dprint('form id ssoLoginForm found', debug)
-        form1 = fmatch.group()
-    else:
-        print('ERROR: form not found! exiting')
-        return
+    hparser = getforms()
+    hparser.feed(r.text)
+    frm1attr, frm1inps = hparser.get_forms_data() 
     dprint('Getting method, action, and input fields from the form...', debug)
-    form1_action_match = re.search('<form.+?method="(.+?)".+?action="(.+?)"', form1)
-    if form1_action_match:
-        dprint('action and method found.', debug)
-        form1_method = form1_action_match.group(1)
-        form1_action = form1_action_match.group(2)
-        dprint('Method: {}'.format(form1_method), debug)
-        dprint('Action: {}'.format(form1_action), debug)
-    else:
-        print('ERROR: action and method not found in form1!')
-        return
+    form1_method = frm1attr['ssoLoginForm']['method']
+    form1_action = frm1attr['ssoLoginForm']['action']
     form1_payload = {}
-    for form1_input in re.finditer('<input.* name="(.+?)".*?>', form1):
-        form1_input_name = form1_input.group(1)
-        if form1_input_name == 'wireless_num':
-            form1_payload[form1_input_name] = userid
-        elif form1_input_name == 'pass':
-            form1_payload[form1_input_name] = password
+    for k in (frm1inps['ssoLoginForm'].viewkeys()):
+        if k == 'wireless_num':
+            form1_payload[k] = userid
+        elif k == 'pass':
+            form1_payload[k] = password
         else:
-            vmatch = re.search('value="(.+?)"',form1_input.group(0))
-            if vmatch:
-                form1_payload[form1_input_name] = vmatch.group(1)
+            form1_payload[k] = frm1inps['ssoLoginForm'][k]
     if string.lower(form1_method) != 'post':
         print("ERROR: FORM method is not post! exiting.")
         return
@@ -126,31 +235,16 @@ def getdatausage(userid, debug):
     r2 = requests.post(form1_action, data=form1_payload)
     printres(r2, debug)
     dprint('Looking for form with id tGuardLoginForm', debug)
-    f2match = re.search('<form.+?id="tGuardLoginForm".+?</form>', r2.text, re.DOTALL)
-    if f2match:
-        dprint('form id tGuardLoginForm found', debug)
-        form2 = f2match.group()
-    else:
-        print('ERROR: form not found! exiting')
-        return
-    # assumption in this re: form parameters has action came first before method.
+    #hparser2 = getforms()
+    #hparser2.feed(r2.text)
+    hparser.feed(r2.text)
+    frm2attr, frm2inps = hparser.get_forms_data() 
     dprint('Getting method, action, and input fields from the form...', debug)
-    form2_action_match = re.search('<form.+?action="(.+?)".+?method="(.+?)"', form2)
-    if form2_action_match:
-        dprint('action and method found.', debug)
-        form2_action = form2_action_match.group(1)
-        form2_method = form2_action_match.group(2)
-        dprint('Method: {}'.format(form2_method), debug)
-        dprint('Action: {}'.format(form2_action), debug)
-    else:
-        print('ERROR: action and method not found in form2!')
-        return
+    form2_method = frm2attr['tGuardLoginForm']['method']
+    form2_action = frm2attr['tGuardLoginForm']['action']
     form2_payload = {}
-    for form2_input in re.finditer('<input.* name="(.+?)".*?>', form2):
-        form2_input_name = form2_input.group(1)
-        v2match = re.search('value="(.+?)"',form2_input.group(0))
-        if v2match:
-           form2_payload[form2_input_name] = v2match.group(1)
+    for k in (frm2inps['tGuardLoginForm'].viewkeys()):
+        form2_payload[k] = frm2inps['tGuardLoginForm'][k]
     if string.lower(form2_method) != 'post':
         dprint("FORM method is not post! exiting.", debug)
         return
@@ -160,49 +254,45 @@ def getdatausage(userid, debug):
     s = requests.session()
     r3 = s.post(form2_action, form2_payload)
     printres(r3, debug)
-    view_all_usage_match = re.search('href="(.+?)">View all usage</a>', r3.text)
-    if view_all_usage_match:
-        dprint('view_all_usage link found.', debug)
-        usagepage = view_all_usage_match.group(1)
-    else:
-        print('ERROR: view_all_usage link NOT FOUND!  exiting')
-        return
+    hparser3 = gethrefbaseondata()
+    hparser3.feed(r3.text)
+    usagepage = hparser3.get_href()
     servername3_match = re.search('(http.*://[a-zA-Z_0-9\.\-]+[:0-9]*)/.+',r3.url)
     servername3 = servername3_match.group(1)
     fusagepage = servername3 + usagepage
-    match = re.search('<!-- Usage Container -->(.+?)<!-- /Usage Container -->', r3.text, re.DOTALL)
-    if match:
-        usage_html = match.group()
-        sdsmatch = re.search('Shared Data Section.+?fontWeightBoldForce">(.+?)</p>.+?End : Shared Data Section', usage_html, re.DOTALL)
-        res = cleanv(sdsmatch.group(1))
-        dprint('Data Usage Status from Dashboard: {}'.format(res), debug)
-        dprint('Data Usage per device from Dashboard:', debug)
-        for phoneitem in re.finditer('<li class="phoneItem.+?sdgFirstName">(.+?)</div>.+?sdgUsage">(.+?)</div>', usage_html, re.DOTALL):
-            phone_owner = cleanv(phoneitem.group(1))
-            phone_usage = cleanv(phoneitem.group(2))
-            dprint('\t{0} : {1}'.format(phone_owner, phone_usage), debug)
-    else:
-        print('WARN: no match in Shared Data Section page')
+#    match = re.search('<!-- Usage Container -->(.+?)<!-- /Usage Container -->', r3.text, re.DOTALL)
+#    if match:
+#        usage_html = match.group()
+#        sdsmatch = re.search('Shared Data Section.+?fontWeightBoldForce">(.+?)</p>.+?End : Shared Data Section', usage_html, re.DOTALL)
+#        if sdsmatch:
+#            res = cleanv(sdsmatch.group(1))
+#            dprint('Data Usage Status from Dashboard: {}'.format(res), debug)
+#            dprint('Data Usage per device from Dashboard:', debug)
+#            for phoneitem in re.finditer('<li class="phoneItem.+?sdgFirstName">(.+?)</div>.+?sdgUsage">(.+?)</div>', usage_html, re.DOTALL):
+#                phone_owner = cleanv(phoneitem.group(1))
+#                phone_usage = cleanv(phoneitem.group(2))
+#                dprint('\t{0} : {1}'.format(phone_owner, phone_usage), debug)
+#        else:
+#            print('WARN: no match in Shared Data Section page')
+#    else:
+#        print('WARN: no match in Usage Container page')
     dprint('Connecting to {}'.format(fusagepage), debug)
     r4 = s.get(fusagepage)
     printres(r4, debug)
-    usageurl_match = re.search('<div id="UsageUrl".+?>.*?([a-zA-Z_0-9\.\-/]+).*?</div>', r4.text, re.DOTALL)
-    if usageurl_match:
-        dprint('usageurl link found.', debug)
-        usageurl = usageurl_match.group(1)
-    else:
-        print('ERROR: usageurl link NOT FOUND!  exiting')
-        return
+    hparser5 = getdatabaseondivid()
+    hparser5.feed(r4.text)
+    usageurl = cleanv(hparser5.get_udata())
     servername4_match = re.search('(http.*://[a-zA-Z_0-9\.\-]+[:0-9]*)/.+',r4.url)
     servername4 = servername4_match.group(1)
     fusageurl = servername4 + usageurl
     dprint('Connecting to {}'.format(fusageurl), debug)
     r5 = s.get(fusageurl)
     printres(r5, debug)
-    timerangematch = re.search('<div id="timeRange".+?left">(.+?)</div>', r5.text, re.DOTALL)
-    timerange = cleanv(timerangematch.group(1))
-    daysleftmatch = re.search('<strong>Billing Period:</strong>\s*(.+?left)</p>', r5.text)
-    daysleft = cleanv(daysleftmatch.group(1))
+    hparser5.feed(r5.text)
+    timerange = cleanv(hparser5.get_udata())
+    hparser6 = getparagraphdata()
+    hparser6.feed(r5.text)
+    daysleft = cleanv(hparser6.get_udata())
     print "Billing Period: {0}; {1}".format(timerange, daysleft)
     print
     deviceusage = {}
