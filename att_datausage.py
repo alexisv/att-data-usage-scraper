@@ -4,12 +4,12 @@
 # created by Alexis Villalon alexisv@gmail.com
 #
 import requests
-import datetime
 import keyring
-import hparse
+import datetime
 import getopt
 import string
 import sys
+import hparse
 ATTURL = 'http://www.att.com'
 KEYRING_SERVICE = 'att'
 FORM1 = 'ssoLoginForm'
