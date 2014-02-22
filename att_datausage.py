@@ -67,23 +67,23 @@ def main():
             print '\t{0} : {1} : {2}'.format(dphone_owner, dphone_number, dphone_data)
         return
     else:
-        return(4)
+        return(d1)
     
 def getdatausage(userid, debug):
     if userid in (None, ''):
         print "ERROR: userid is needed!"
-        return
+        return(4,4)
     password = keyring.get_password(KEYRING_SERVICE, userid)
     if password == None:
         print "ERROR: No password retrieved from keyring.  You need to set up your keyring first."
-        return
+        return(4,4)
     if debug == 'Y':
         print "Debug is set."
     dprint('Connecting to {}'.format(ATTURL), debug)
     r = requests.get(ATTURL)
     resisnot200 = procres(r, debug)
     if resisnot200:
-        return(199)
+        return(199,199)
     dprint('Looking for form with id {}'.format(FORM1), debug)
     hparser = hparse.getforms()
     hparser.feed(r.text)
@@ -101,13 +101,13 @@ def getdatausage(userid, debug):
             form1_payload[k] = frm1inps[FORM1][k]
     if string.lower(form1_method) != 'post' or form1_action in (None, '', ' '):
         print('ERROR: FORM details are not as expected! ', frm1attr[FORM1], frm1inps[FORM1])
-        return(249)
+        return(249,249)
     #dprint('Data payload: {}'.format(form1_payload), debug)
     dprint('Connecting to {}'.format(form1_action), debug)
     r2 = requests.post(form1_action, data=form1_payload)
     resisnot200 = procres(r2, debug)
     if resisnot200:
-        return(209)
+        return(209,209)
     dprint('Looking for form with id {}'.format(FORM2), debug)
     # re-use hparser
     hparser.feed(r2.text)
@@ -120,7 +120,7 @@ def getdatausage(userid, debug):
         form2_payload[k] = frm2inps[FORM2][k]
     if string.lower(form2_method) != 'post' or form2_action in (None, '', ' '):
         print('ERROR: FORM details are not as expected! ', frm2attr[FORM2], frm2inps[FORM2])
-        return(259)
+        return(259,259)
     #dprint('Data payload: {}'.format(form2_payload), debug)
     dprint('Connecting to {}'.format(form2_action), debug)
     # create session
@@ -128,13 +128,13 @@ def getdatausage(userid, debug):
     r3 = s.post(form2_action, form2_payload)
     resisnot200 = procres(r3, debug)
     if resisnot200:
-        return(219)
+        return(219,219)
     hparser3 = hparse.gethrefbaseondata()
     hparser3.feed(r3.text)
     usagelandingpage = hparser3.get_href()
     if usagelandingpage in (None, '', ' '):
         print('ERROR: usagelandingpage link not found!')
-        return(299)
+        return(299,299)
     url3toks = r3.url.split('/')
     servername3 = url3toks[0] + '//' + url3toks[2]
     fusagelandingpage = servername3 + usagelandingpage
@@ -142,13 +142,13 @@ def getdatausage(userid, debug):
     r4 = s.get(fusagelandingpage)
     resisnot200 = procres(r4, debug)
     if resisnot200:
-        return(229)
+        return(229,229)
     hparser5 = hparse.getdatabaseondivid()
     hparser5.feed(r4.text)
     usagetable = hparser5.get_udata()
     if usagetable in (None, '', ' '):
         print('ERROR: usagetable link not found!')
-        return(349)
+        return(349,349)
     url4toks = r4.url.split('/')
     servername4 = url4toks[0] + '//' + url4toks[2]
     fusagetable = servername4 + usagetable
@@ -156,13 +156,13 @@ def getdatausage(userid, debug):
     r5 = s.get(fusagetable)
     resisnot200 = procres(r5, debug)
     if resisnot200:
-        return(239)
+        return(239,239)
     hparser6 = hparse.gettableinfo()
     hparser6.feed(r5.text)
     totalusage, timerange, daysleft, deviceusage = hparser6.get_table_data()
     if totalusage in (None, '', ' '):
         print('ERROR: Usage information not found!')
-        return(399)
+        return(399,399)
     dprint("Billing Period: {0}; {1}".format(timerange, daysleft), debug)
     dprint('Detailed Data Usage Status: {}'.format(totalusage), debug)
     dprint('Detailed Data Usage per device:', debug)
