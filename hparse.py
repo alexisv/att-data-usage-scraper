@@ -57,7 +57,7 @@ class gettableinfo(HTMLParser.HTMLParser):
         if self.inTD == True and tag == 'p' and self.TDcntr == 1 and self.TD_Pcntr == 2:
             self.inOwnerPhone = True
             #print 'ownerphone found'
-        if self.inTD == True and self.TDcntr == 4:
+        if self.inTD == True and self.TDcntr == 2:
             if tag in ('span', 'strong', 'abbr'):
                 self.inData = True
                 #print 'data found'
